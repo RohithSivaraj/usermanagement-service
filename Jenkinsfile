@@ -28,10 +28,13 @@ pipeline {
         script {
           def gitCommit = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
           def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${gitCommit}"
+          def imageName1 = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:latest"
 
           sh "docker build -t ${imageName} ."
           sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
           sh "docker push ${imageName}"
+          h "docker tag ${imageName} ${imageName1}"
+          sh "docker push ${imageName1}"
 
           // Save image name for deployment stage
           env.IMAGE_NAME = imageName
