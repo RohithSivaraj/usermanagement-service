@@ -1,5 +1,8 @@
 pipeline {
   agent any
+  tools {
+    maven 'Maven'  // This should match the name you gave in Global Tool Config
+}
 
   environment {
     AWS_ACCOUNT_ID = '529088274428'
