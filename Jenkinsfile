@@ -1,7 +1,9 @@
 pipeline {
   agent any
+  
   tools {
     maven 'Maven'  // This should match the name you gave in Global Tool Config
+    sonarQubeScanner 'SonarQubeScanner'  // Add SonarQube scanner tool
 }
 
   environment {
@@ -14,6 +16,25 @@ pipeline {
     stage('Checkout') {
       steps {
         checkout scm
+      }
+    }
+
+    stage('SonarQube Analysis') {
+      environment {
+        scannerHome = tool 'SonarQubeScanner'
+      }
+      steps {
+        withSonarQubeEnv('SonarQube') {
+          sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=rohsiv-sonar -Dsonar.sources=."
+        }
+      }
+    }
+
+    stage('Quality Gate') {
+      steps {
+        timeout(time: 2, unit: 'MINUTES') {
+          waitForQualityGate abortPipeline: true
+        }
       }
     }
 
