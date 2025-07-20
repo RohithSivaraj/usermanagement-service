@@ -31,4 +31,4 @@
 terraform.tfstate
 terraform.tfstate.backup
 terraform.tfvars
-token.txt
+token.txt.terraform/
