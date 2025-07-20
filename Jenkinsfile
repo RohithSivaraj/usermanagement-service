@@ -47,7 +47,7 @@ pipeline {
         script {
           // Use AWS CLI or SDK to update ECS service with new image
           sh """
-          aws ecs update-service --cluster your-ecs-cluster-name --service your-ecs-service-name \
+          aws ecs update-service --cluster rohsiv-cluster-new --service rohsiv-service \
           --force-new-deployment --region ${AWS_REGION}
           """
         }
