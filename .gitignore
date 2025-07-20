@@ -26,3 +26,9 @@
 
 ### test log file ###
 *.log
+
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+token.txt
