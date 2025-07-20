@@ -3,7 +3,6 @@ pipeline {
   
   tools {
     maven 'Maven'  // This should match the name you gave in Global Tool Config
-    sonarQubeScanner 'SonarQubeScanner'  // Add SonarQube scanner tool
 }
 
   environment {
@@ -19,30 +18,21 @@ pipeline {
       }
     }
 
-    stage('SonarQube Analysis') {
-      environment {
-        scannerHome = tool 'SonarQubeScanner'
-      }
-      steps {
-        withSonarQubeEnv('SonarQube') {
-          sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=rohsiv-sonar -Dsonar.sources=."
-        }
-      }
-    }
-
-    stage('Quality Gate') {
-      steps {
-        timeout(time: 2, unit: 'MINUTES') {
-          waitForQualityGate abortPipeline: true
-        }
-      }
-    }
-
     stage('Build Maven Package') {
       steps {
         sh 'mvn clean package -DskipTests'
       }
     }
+
+    stage('SonarQube Analysis') {
+
+      steps {
+        withSonarQubeEnv('SonarQube') {
+          sh 'mvn sonar:sonar -Dsonar.projectKey=rohsiv-sonar'
+        }
+      }
+    }
+ 
 
     stage('Build Docker Image') {
       steps {

@@ -32,6 +32,18 @@ resource "aws_security_group" "ecs" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  ingress {
+    from_port   = 8095
+    to_port     = 8095
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   egress {
     from_port   = 0
@@ -78,6 +90,12 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_new" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# CloudWatch Log Group for ECS
+resource "aws_cloudwatch_log_group" "ecs_logs" {
+  name              = "/ecs/rohsiv-service"
+  retention_in_days = 7  # Set the retention period as needed
+}
+
 # ECS Task Definition
 resource "aws_ecs_task_definition" "app" {
   family                   = "my-task"
@@ -86,6 +104,7 @@ resource "aws_ecs_task_definition" "app" {
   cpu                      = "256"
   memory                   = "512"
   execution_role_arn       = aws_iam_role.ecs_task_execution_new.arn
+  task_role_arn            = aws_iam_role.ecs_task_execution_new.arn
 
   container_definitions = jsonencode([
     {
@@ -97,8 +116,15 @@ resource "aws_ecs_task_definition" "app" {
           containerPort = 8095,
         }
       ]
+      logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.ecs_logs.name
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "ecs"
+      }
     }
-  ])
+}])
 }
 
 # ECS Service
@@ -114,6 +140,8 @@ resource "aws_ecs_service" "app" {
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = true
   }
+
+  force_new_deployment = true
 
   depends_on = [aws_iam_role_policy_attachment.ecs_task_execution_new]
 }
