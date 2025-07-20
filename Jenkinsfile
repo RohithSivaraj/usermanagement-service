@@ -33,7 +33,7 @@ pipeline {
           sh "docker build -t ${imageName} ."
           sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
           sh "docker push ${imageName}"
-          h "docker tag ${imageName} ${imageName1}"
+          sh "docker tag ${imageName} ${imageName1}"
           sh "docker push ${imageName1}"
 
           // Save image name for deployment stage
