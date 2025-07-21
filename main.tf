@@ -2,8 +2,10 @@ provider "aws" {
   access_key = var.aws_access_key_id
   secret_key = var.aws_secret_access_key
   token      = var.aws_session_token
-  region = var.aws_region
+  region     = var.aws_region
 }
+
+data "aws_caller_identity" "current" {}
 
 # VPC
 resource "aws_vpc" "main" {
@@ -78,17 +80,6 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
-# ECR Repository
-resource "aws_ecr_repository" "app" {
-  name = var.ecr_repo_name
-}
-
-# ECS Cluster
-resource "aws_ecs_cluster" "main" {
-  name = var.ecs_cluster_name
-}
-
-
 # IAM Role for ECS Task Execution
 resource "aws_iam_role" "ecs_task_execution_new" {
   name = "ecsTaskExecutionRole-new"
@@ -115,13 +106,52 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_new" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+resource "aws_iam_policy" "ssm_access" {
+  name = "ecs_ssm_parameter_access"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "ssm:GetParametersByPath",
+          "secretsmanager:GetSecretValue",
+          "kms:Decrypt"
+        ],
+        Resource = ["arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/rohsiv/rds/*",
+        //"arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"
+        ]
+
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_ssm_policy_attachment" {
+  role       = aws_iam_role.ecs_task_execution_new.name
+  policy_arn = aws_iam_policy.ssm_access.arn
+}
+
+
 # CloudWatch Log Group for ECS
 resource "aws_cloudwatch_log_group" "ecs_logs" {
   name              = "/ecs/rohsiv-service"
   retention_in_days = 7  # Set the retention period as needed
 }
 
-# ECS Task Definition
+# ECR Repository
+resource "aws_ecr_repository" "app" {
+  name = var.ecr_repo_name
+}
+
+# ECS Cluster
+resource "aws_ecs_cluster" "main" {
+  name = var.ecs_cluster_name
+}
+
+# ECS Task Definition with SSM 
 resource "aws_ecs_task_definition" "app" {
   family                   = "my-task"
   network_mode             = "awsvpc"
@@ -138,18 +168,41 @@ resource "aws_ecs_task_definition" "app" {
       essential = true,
       portMappings = [
         {
-          containerPort = 8095,
+          containerPort = 8095
+        }
+      ],
+      logConfiguration = {
+        logDriver = "awslogs",
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.ecs_logs.name,
+          "awslogs-region"        = var.aws_region,
+          "awslogs-stream-prefix" = "ecs"
+        }
+      },
+      secrets = [
+        {
+          name      = "RDS_HOSTNAME",
+          valueFrom = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/rohsiv/rds/hostname"
+        },
+        {
+          name      = "RDS_PORT",
+          valueFrom = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/rohsiv/rds/port"
+        },
+        {
+          name      = "RDS_DB_NAME",
+          valueFrom = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/rohsiv/rds/db_name"
+        },
+        {
+          name      = "RDS_USERNAME",
+          valueFrom = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/rohsiv/rds/username"
+        },
+        {
+          name      = "RDS_PASSWORD",
+          valueFrom = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/rohsiv/rds/password"
         }
       ]
-      logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.ecs_logs.name
-        "awslogs-region"        = var.aws_region
-        "awslogs-stream-prefix" = "ecs"
-      }
     }
-}])
+  ])
 }
 
 # ALB
