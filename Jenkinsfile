@@ -9,8 +9,6 @@ pipeline {
     AWS_ACCOUNT_ID = '529088274428'
     AWS_REGION = 'us-east-1'
     ECR_REPO = 'rohsiv-repo-new'
-    RDS_USERNAME = credentials('RDS_USERNAME')
-    RDS_PASSWORD = credentials('RDS_PASSWORD')
   }
 
   stages {
@@ -26,12 +24,7 @@ pipeline {
       }
     }
 
-    stage('Deploy') {
-      steps {
-        sh 'java -jar target/myapp.jar'
-      }
-    }
-
+    
     stage('SonarQube Analysis') {
 
       steps {
