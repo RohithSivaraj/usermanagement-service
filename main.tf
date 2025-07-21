@@ -10,7 +10,7 @@ resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 }
 
-# Subnets
+# Subnets Public
 resource "aws_subnet" "a" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.1.0/24"
@@ -22,6 +22,7 @@ resource "aws_subnet" "b" {
   cidr_block        = "10.0.2.0/24"
   availability_zone = "us-east-1b"
 }
+
 
 # Security Group
 resource "aws_security_group" "ecs" {
@@ -44,6 +45,27 @@ resource "aws_security_group" "ecs" {
   ingress {
     from_port   = 22
     to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Security Group for ALB
+resource "aws_security_group" "alb_sg" {
+  name        = "alb_sg_rohsiv"
+  description = "Allow HTTP access"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -130,6 +152,44 @@ resource "aws_ecs_task_definition" "app" {
 }])
 }
 
+# ALB
+resource "aws_lb" "ecs_alb" {
+  name               = "rohsiv-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = [aws_subnet.a.id, aws_subnet.b.id]
+}
+
+resource "aws_lb_target_group" "ecs_tg" {
+  name     = "rohsiv-target-group"
+  port     = 8095
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
+  target_type  = "ip"
+
+  health_check {
+    path                = "/actuator/health"
+    protocol            = "HTTP"
+    interval            = 120
+    timeout             = 5
+    healthy_threshold   = 5
+    unhealthy_threshold = 5
+  }
+}
+
+resource "aws_lb_listener" "ecs_listener" {
+  load_balancer_arn = aws_lb.ecs_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.ecs_tg.arn
+  }
+}
+
+
 # ECS Service
 resource "aws_ecs_service" "app" {
   name            = "rohsiv-service"
@@ -143,8 +203,13 @@ resource "aws_ecs_service" "app" {
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = true
   }
+   load_balancer {
+    target_group_arn = aws_lb_target_group.ecs_tg.arn
+    container_name   = "app"
+    container_port   = 8095
+  }
 
   force_new_deployment = true
 
-  depends_on = [aws_iam_role_policy_attachment.ecs_task_execution_new]
+  depends_on = [aws_iam_role_policy_attachment.ecs_task_execution_new,aws_lb_listener.ecs_listener]
 }
