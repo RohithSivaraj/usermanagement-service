@@ -8,4 +8,4 @@ This project uses a **CI/CD pipeline** that automates the process of building, t
 
 ## New task
 
-this is a new task where i add db. Application now working fine.
+this is a new task where i add db. Application now working fine. Completed
